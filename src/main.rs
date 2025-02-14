@@ -16,44 +16,48 @@ use entitys::{prelude::*, *};
 // use validator::Validate;
 // use thiserror::Error;
 
-const DATABASE_URL: &str = "mysql://root:123456@localhost:3306";
-const DB_NAME: &str = "rust_demo";
+const DATABASE_URL: &str = "mysql://root:123456@localhost:3306/rust_demo";
 
 #[tokio::main]
 async fn main() {
     let app = Router::new()
     .route("/", get(root))
     .route("/users", post(create_user))
-    .route("/users/:username", get(get_user))
-    .route("/test_db", get(test_db));
+    .route("/users/:username", get(get_user));
 
     let listener = tokio::net::TcpListener::bind("127.0.0.1:3000").await.unwrap();
     axum::serve(listener, app).await.unwrap();
 }
 
-async fn test_db() -> Response<Body> {
-    let db = Database::connect(DATABASE_URL).await;
-    match db {
-        Ok(_db) => {"Ok!".into_response()},
-        Err(e) => {
-            let err_mes = format!("Failed:{}", e);
-            err_mes.into_response()
-        },
-    }
+async fn connect_db() -> Result<DatabaseConnection, DbErr> {
+    let db = Database::connect(DATABASE_URL).await?;
+    Ok(db)
 }
 
 async fn root() -> Response<Body> {
     "Hello, World!".into_response()
 }
 
-async fn create_user(Json(payload): Json<CreateUser>) -> (StatusCode, Json<User>) {
-    
-    let user = User {
-        id: 1337,
-        username: payload.username,
-    };
-
-    (StatusCode::CREATED, Json(user))
+async fn create_user() -> Response<Body> {
+    let res = do_create_user().await;
+    match res {
+        Ok(_) => {"Ok".into_response()},
+        Err(e) => {
+            let err_msg = format!("Failed:{}", e);
+            err_msg.into_response()
+        },
+    }
+}
+async fn do_create_user() -> Result<(), DbErr> {
+    let db = connect_db().await?;
+    let user_model: users_demo::ActiveModel = users_demo::ActiveModel {
+            id: ActiveValue::NotSet,
+            username: ActiveValue::Set("test".to_string()),
+            email: ActiveValue::Set("123@qq.com".to_string()),
+            ..Default::default()
+        };
+    let _res: InsertResult<users_demo::ActiveModel> = UsersDemo::insert(user_model).exec(&db).await?;
+    Ok(())
 }
 
 async fn get_user(Path(name): Path<String>) -> (StatusCode, Json<User>) {
