@@ -22,7 +22,7 @@ const DATABASE_URL: &str = "mysql://root:123456@localhost:3306/rust_demo";
 async fn main() {
     let app = Router::new()
     .route("/", get(root))
-    .route("/users", post(create_user).put(update_user))
+    .route("/users", post(create_user).put(update_user).delete(delete_user))
     .route("/users/:username", get(get_user));
 
     let listener = tokio::net::TcpListener::bind("127.0.0.1:3000").await.unwrap();
@@ -38,22 +38,16 @@ async fn root() -> Response<Body> {
     "Hello, World!".into_response()
 }
 
-async fn create_user() -> Response<Body> {
-    let res = do_create_user().await;
-    match res {
-        Ok(_) => {"Ok".into_response()},
-        Err(e) => {
-            let err_msg = format!("Failed:{}", e);
-            err_msg.into_response()
-        },
-    }
+async fn create_user(Json(user): Json<User>) -> Result<String, AppError> {
+    do_create_user(user).await;
+    Ok("Ok".to_string())
 }
-async fn do_create_user() -> Result<(), DbErr> {
+async fn do_create_user(user: User) -> Result<(), DbErr> {
     let db = connect_db().await?;
     let user_model: users_demo::ActiveModel = users_demo::ActiveModel {
             id: ActiveValue::NotSet,
-            username: ActiveValue::Set("test".to_string()),
-            email: ActiveValue::Set("123@qq.com".to_string()),
+            username: ActiveValue::Set(user.username),
+            email: ActiveValue::Set(user.email),
             ..Default::default()
         };
     let _res: InsertResult<users_demo::ActiveModel> = UsersDemo::insert(user_model).exec(&db).await?;
@@ -90,15 +84,6 @@ async fn do_get_user(username: String) -> Result<Model, DbErr> {
 async fn update_user(Json(user): Json<User>) -> Result<String, AppError> {
     do_update_user(user).await;
     Ok("Ok".to_string())
-    // match res {
-    //     Ok(_) => {
-    //         Ok(Json(user))
-    //     },
-    //     Err(e) => {
-    //         e.to_string().into_response()
-    //     },
-    // }
-    
 }
 
 async fn do_update_user(user: User) -> Result<(), DbErr> {
@@ -120,6 +105,29 @@ async fn do_update_user(user: User) -> Result<(), DbErr> {
             Err(e)
         },
     }
+}
+
+async fn delete_user(Json(user): Json<User>) -> Result<String, AppError> {
+    do_delete_user(user).await;
+    Ok("Ok".to_string())
+}
+
+async fn do_delete_user(user: User) -> Result<(), DbErr> {
+    let db = connect_db().await?;
+    let user_demo = do_get_user(user.username).await;
+    match user_demo {
+        Ok(demo) => {
+            let user_model = users_demo::ActiveModel {
+                id: ActiveValue::Set(demo.id),
+                username: ActiveValue::Set(demo.username),
+                ..Default::default()
+            };
+        user_model.delete(&db).await?;
+        },
+        Err(_) => {},
+    }
+
+    Ok(())
 }
 
 #[derive(Serialize, Deserialize)]
