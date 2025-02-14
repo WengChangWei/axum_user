@@ -11,7 +11,7 @@ use axum::{
 };
 use sea_orm::*;
 use serde::{Deserialize, Serialize};
-use entitys::{prelude::*, *};
+use entitys::{prelude::*, users_demo::Model, *};
 // , de::DeserializeOwned
 // use validator::Validate;
 // use thiserror::Error;
@@ -60,13 +60,28 @@ async fn do_create_user() -> Result<(), DbErr> {
     Ok(())
 }
 
-async fn get_user(Path(name): Path<String>) -> (StatusCode, Json<User>) {
-    let user = User {
-        id: 1337,
-        username: name,
-    };
+async fn get_user(Path(name): Path<String>) -> Response<Body> {
+    let user = do_get_user(name).await;
+    match user {
+        Ok(user) => {user.username.into_response()},
+        Err(_) => {"No found".into_response()},
+    }
+}
 
-    (StatusCode::OK, Json(user))
+async fn do_get_user(username: String) -> Result<Model, DbErr> {
+    let db = connect_db().await?;
+    let user = UsersDemo::find()
+        .filter(users_demo::Column::Username.eq(username))
+        .one(&db)
+        .await?;
+    match user {
+        Some(s) => {
+            return Ok(s)
+        },
+        None => {
+            panic!("UserName is not found")
+        },
+    }
 }
 
 // async fn update_user(ValidatedForm(name): ValidatedForm<String>) -> (StatusCode, Json<User>) {
