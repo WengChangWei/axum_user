@@ -10,13 +10,13 @@ use axum::{
     Router
 };
 use sea_orm::*;
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde::{Deserialize, Serialize};
 use entitys::{prelude::*, users_demo::Model, *};
-use time_library::Timestamp;
 // use validator::Validate;
 // use thiserror::Error;
 
-const DATABASE_URL: &str = "mysql://root:123456@localhost:3306/rust_demo";
+const DATABASE_URL: &str = "mysql://root:123456@localhost:3306";
+const DB_NAME: &str = "rust_demo";
 
 #[tokio::main]
 async fn main() {
@@ -31,6 +31,19 @@ async fn main() {
 
 async fn connect_db() -> Result<DatabaseConnection, DbErr> {
     let db = Database::connect(DATABASE_URL).await?;
+
+    let db = match db.get_database_backend() {
+        DatabaseBackend::MySql => {
+            db.execute(Statement::from_string(
+                db.get_database_backend(), 
+                format!("CREATE DATABASE IF NOT EXISTS `{}`", DB_NAME),
+            )).await?;
+            let url = format!("{}/{}", DATABASE_URL, DB_NAME);
+            Database::connect(&url).await?
+        },
+        _ => {db}
+    };
+
     Ok(db)
 }
 
