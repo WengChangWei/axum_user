@@ -52,8 +52,8 @@ async fn root() -> Response<Body> {
 }
 
 async fn create_user(Json(user): Json<User>) -> Result<String, AppError> {
-    do_create_user(user).await;
-    Ok("Ok".to_string())
+    do_create_user(user).await.map_err(|e| AppError::DatabaseError(e))?;
+    Ok("create user success!".to_string())
 }
 async fn do_create_user(user: User) -> Result<(), DbErr> {
     let db = connect_db().await?;
@@ -63,18 +63,25 @@ async fn do_create_user(user: User) -> Result<(), DbErr> {
             email: ActiveValue::Set(user.email),
             ..Default::default()
         };
-    let _res: InsertResult<users_demo::ActiveModel> = UsersDemo::insert(user_model).exec(&db).await?;
-    Ok(())
-}
-
-async fn get_user(Path(name): Path<String>) -> Response<Body> {
-    let user = do_get_user(name).await;
-    match user {
-        Ok(user) => {user.username.into_response()},
+    let res = UsersDemo::insert(user_model).exec(&db).await;
+    match res {
+        Ok(_) => {
+            Ok(())
+        },
         Err(e) => {
-            e.to_string().into_response()
+            Err(e)
         },
     }
+
+}
+
+async fn get_user(Path(name): Path<String>) -> Result<String, AppError> {
+    let user_model = do_get_user(name).await.map_err(|e| AppError::DatabaseError(e))?;
+    let user = User {
+        username: user_model.username,
+        email: user_model.email
+    };
+    Ok(serde_json::to_string(&user).unwrap())
 }
 
 async fn do_get_user(username: String) -> Result<Model, DbErr> {
@@ -88,15 +95,15 @@ async fn do_get_user(username: String) -> Result<Model, DbErr> {
             return Ok(s)
         },
         None => {
-            Err(DbErr::RecordNotFound("not found".to_string()))
+            Err(DbErr::RecordNotFound("user not found".to_string()))
         },
     }
 }
 
 
 async fn update_user(Json(user): Json<User>) -> Result<String, AppError> {
-    do_update_user(user).await;
-    Ok("Ok".to_string())
+    do_update_user(user).await.map_err(|e| AppError::DatabaseError(e))?;
+    Ok("update user success!".to_string())
 }
 
 async fn do_update_user(user: User) -> Result<(), DbErr> {
@@ -121,8 +128,8 @@ async fn do_update_user(user: User) -> Result<(), DbErr> {
 }
 
 async fn delete_user(Json(user): Json<User>) -> Result<String, AppError> {
-    do_delete_user(user).await;
-    Ok("Ok".to_string())
+    do_delete_user(user).await.map_err(|e| AppError::DatabaseError(e))?;
+    Ok("delete user success!".to_string())
 }
 
 async fn do_delete_user(user: User) -> Result<(), DbErr> {
@@ -137,7 +144,9 @@ async fn do_delete_user(user: User) -> Result<(), DbErr> {
             };
         user_model.delete(&db).await?;
         },
-        Err(_) => {},
+        Err(e) => {
+            return Err(e)
+        },
     }
 
     Ok(())
@@ -149,17 +158,11 @@ struct User {
     email: String,
 }
 
-// The kinds of errors we can hit in our application.
 enum AppError {
-    // The request body contained invalid JSON
-    JsonRejection(JsonRejection),
-    // Some error from a third party library we're using
-    TimeError(time_library::Error),
+    DatabaseError(sea_orm::DbErr),
 }
 
-// Tell axum how `AppError` should be converted into a response.
-//
-// This is also a convenient place to log errors.
+
 impl IntoResponse for AppError {
     fn into_response(self) -> Response {
         // How we want errors responses to be serialized
@@ -169,19 +172,11 @@ impl IntoResponse for AppError {
         }
 
         let (status, message) = match self {
-            AppError::JsonRejection(rejection) => {
-                // This error is caused by bad user input so don't log it
-                (rejection.status(), rejection.body_text())
-            }
-            AppError::TimeError(err) => {
-                // Because `TraceLayer` wraps each request in a span that contains the request
-                // method, uri, etc we don't need to include those details here
-                tracing::error!(%err, "error from time_library");
-
-                // Don't expose any details about the error to the client
+            AppError::DatabaseError(err) => {
+                tracing::error!(%err, "Database error");
                 (
                     StatusCode::INTERNAL_SERVER_ERROR,
-                    "Something went wrong".to_owned(),
+                    err.to_string(),
                 )
             }
         };
@@ -190,47 +185,8 @@ impl IntoResponse for AppError {
     }
 }
 
-impl From<JsonRejection> for AppError {
-    fn from(rejection: JsonRejection) -> Self {
-        Self::JsonRejection(rejection)
-    }
-}
-
-impl From<time_library::Error> for AppError {
-    fn from(error: time_library::Error) -> Self {
-        Self::TimeError(error)
-    }
-}
-
-mod time_library {
-    use std::sync::atomic::{AtomicU64, Ordering};
-
-    use serde::Serialize;
-
-    #[derive(Serialize, Clone)]
-    pub struct Timestamp(u64);
-
-    impl Timestamp {
-        pub fn now() -> Result<Self, Error> {
-            static COUNTER: AtomicU64 = AtomicU64::new(0);
-
-            // Fail on every third call just to simulate errors
-            if COUNTER.fetch_add(1, Ordering::SeqCst) % 3 == 0 {
-                Err(Error::FailedToGetTime)
-            } else {
-                Ok(Self(1337))
-            }
-        }
-    }
-
-    #[derive(Debug)]
-    pub enum Error {
-        FailedToGetTime,
-    }
-
-    impl std::fmt::Display for Error {
-        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            write!(f, "failed to get time")
-        }
+impl From<sea_orm::DbErr> for AppError {
+    fn from(err: sea_orm::DbErr) -> Self {
+        Self::DatabaseError(err)
     }
 }
