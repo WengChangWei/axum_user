@@ -2,17 +2,17 @@ mod entitys;
 
 use axum::{
     body::Body, 
-    extract::{Path}, // rejection::FormRejection, Form, FromRequest, Request,
+    extract::{rejection::JsonRejection, Path}, // rejection::FormRejection, Form, FromRequest, Request,
     http::StatusCode, 
     response::{IntoResponse, Response}, 
-    routing::{get, post}, 
+    routing::{get, post, put}, 
     Json, 
     Router
 };
 use sea_orm::*;
-use serde::{Deserialize, Serialize};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use entitys::{prelude::*, users_demo::Model, *};
-// , de::DeserializeOwned
+use time_library::Timestamp;
 // use validator::Validate;
 // use thiserror::Error;
 
@@ -22,7 +22,7 @@ const DATABASE_URL: &str = "mysql://root:123456@localhost:3306/rust_demo";
 async fn main() {
     let app = Router::new()
     .route("/", get(root))
-    .route("/users", post(create_user))
+    .route("/users", post(create_user).put(update_user))
     .route("/users/:username", get(get_user));
 
     let listener = tokio::net::TcpListener::bind("127.0.0.1:3000").await.unwrap();
@@ -64,7 +64,9 @@ async fn get_user(Path(name): Path<String>) -> Response<Body> {
     let user = do_get_user(name).await;
     match user {
         Ok(user) => {user.username.into_response()},
-        Err(_) => {"No found".into_response()},
+        Err(e) => {
+            e.to_string().into_response()
+        },
     }
 }
 
@@ -79,69 +81,135 @@ async fn do_get_user(username: String) -> Result<Model, DbErr> {
             return Ok(s)
         },
         None => {
-            panic!("UserName is not found")
+            Err(DbErr::RecordNotFound("not found".to_string()))
         },
     }
 }
 
-// async fn update_user(ValidatedForm(name): ValidatedForm<String>) -> (StatusCode, Json<User>) {
-//     let user = User {
-//         id: 1337,
-//         username: name,
-//     };
 
-//     (StatusCode::OK, Json(user))
-// }
-
-// #[derive(Debug, Clone, Copy, Default)]
-// pub struct ValidatedForm<T>(pub T);
-
-// impl<T, S> FromRequest<S> for ValidatedForm<T>
-// where
-//     T: DeserializeOwned + Validate,
-//     S: Send + Sync,
-//     Form<T>: FromRequest<S, Rejection = FormRejection>,
-// {
-//     type Rejection = ServerError;
-
-//     async fn from_request(req: Request, state: &S) -> Result<Self, Self::Rejection> {
-//         let Form(value) = Form::<T>::from_request(req, state).await?;
-//         value.validate()?;
-//         Ok(ValidatedForm(value))
-//     }
-// }
-
-// #[derive(Debug, Error)]
-// pub enum ServerError {
-//     #[error(transparent)]
-//     ValidationError(#[from] validator::ValidationErrors),
-
-//     #[error(transparent)]
-//     AxumFormRejection(#[from] FormRejection),
-// }
-
-// impl IntoResponse for ServerError {
-//     fn into_response(self) -> Response {
-//         match self {
-//             ServerError::ValidationError(_) => {
-//                 let message = format!("Input validation error: [{self}]").replace('\n', ", ");
-//                 (StatusCode::BAD_REQUEST, message)
-//             }
-//             ServerError::AxumFormRejection(_) => (StatusCode::BAD_REQUEST, self.to_string()),
-//         }
-//         .into_response()
-//     }
-// }
-
-
-
-#[derive(Deserialize)]
-struct CreateUser {
-    username: String,
+async fn update_user(Json(user): Json<User>) -> Result<String, AppError> {
+    do_update_user(user).await;
+    Ok("Ok".to_string())
+    // match res {
+    //     Ok(_) => {
+    //         Ok(Json(user))
+    //     },
+    //     Err(e) => {
+    //         e.to_string().into_response()
+    //     },
+    // }
+    
 }
 
-#[derive(Serialize)]
+async fn do_update_user(user: User) -> Result<(), DbErr> {
+    let username = user.username;
+    let user_model = do_get_user(username).await;
+    let db = connect_db().await?;
+    match user_model {
+        Ok(model) => {
+            let db_model = users_demo::ActiveModel {
+                            id: ActiveValue::Set(model.id),
+                            username: ActiveValue::Set(model.username),
+                            email: ActiveValue::Set(user.email),
+                            ..Default::default()
+                        };
+            db_model.update(&db).await?;
+            Ok(())
+        },
+        Err(e) => {
+            Err(e)
+        },
+    }
+}
+
+#[derive(Serialize, Deserialize)]
 struct User {
-    id: u64,
     username: String,
+    email: String,
+}
+
+// The kinds of errors we can hit in our application.
+enum AppError {
+    // The request body contained invalid JSON
+    JsonRejection(JsonRejection),
+    // Some error from a third party library we're using
+    TimeError(time_library::Error),
+}
+
+// Tell axum how `AppError` should be converted into a response.
+//
+// This is also a convenient place to log errors.
+impl IntoResponse for AppError {
+    fn into_response(self) -> Response {
+        // How we want errors responses to be serialized
+        #[derive(Serialize)]
+        struct ErrorResponse {
+            message: String,
+        }
+
+        let (status, message) = match self {
+            AppError::JsonRejection(rejection) => {
+                // This error is caused by bad user input so don't log it
+                (rejection.status(), rejection.body_text())
+            }
+            AppError::TimeError(err) => {
+                // Because `TraceLayer` wraps each request in a span that contains the request
+                // method, uri, etc we don't need to include those details here
+                tracing::error!(%err, "error from time_library");
+
+                // Don't expose any details about the error to the client
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "Something went wrong".to_owned(),
+                )
+            }
+        };
+
+        (status, Json(ErrorResponse { message })).into_response()
+    }
+}
+
+impl From<JsonRejection> for AppError {
+    fn from(rejection: JsonRejection) -> Self {
+        Self::JsonRejection(rejection)
+    }
+}
+
+impl From<time_library::Error> for AppError {
+    fn from(error: time_library::Error) -> Self {
+        Self::TimeError(error)
+    }
+}
+
+mod time_library {
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    use serde::Serialize;
+
+    #[derive(Serialize, Clone)]
+    pub struct Timestamp(u64);
+
+    impl Timestamp {
+        pub fn now() -> Result<Self, Error> {
+            static COUNTER: AtomicU64 = AtomicU64::new(0);
+
+            // Fail on every third call just to simulate errors
+            if COUNTER.fetch_add(1, Ordering::SeqCst) % 3 == 0 {
+                Err(Error::FailedToGetTime)
+            } else {
+                Ok(Self(1337))
+            }
+        }
+    }
+
+    #[derive(Debug)]
+    pub enum Error {
+        FailedToGetTime,
+    }
+
+    impl std::fmt::Display for Error {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            write!(f, "failed to get time")
+        }
+    }
 }
