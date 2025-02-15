@@ -3,6 +3,7 @@ mod handler;
 mod boot_server;
 mod service;
 mod vo;
+mod dao;
 
 use axum::{
     routing::{get, post}, 

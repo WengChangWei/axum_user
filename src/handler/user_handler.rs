@@ -2,7 +2,7 @@
 
 use axum::{body::Body, extract::{Path, State}, http::StatusCode, response::{IntoResponse, Response}, Json};
 
-use serde::{Serialize};
+use serde::Serialize;
 use crate::{
     boot_server::state::AppState, 
     service::user_service::UserService, vo::user::User,
@@ -20,7 +20,7 @@ impl UserHandler {
         State(state): State<AppState>,
         Json(user): Json<User>
     ) -> Result<String, AppError> {
-        UserService::do_create_user(state,user).await.map_err(|e| AppError::DatabaseError(e))?;
+        UserService::do_create_user(&state,user).await.map_err(|e| AppError::DatabaseError(e))?;
         Ok("create user success!".to_string())
     }
 
@@ -29,7 +29,7 @@ impl UserHandler {
         State(state): State<AppState>,
         Path(name): Path<String>
     ) -> Result<String, AppError> {
-        let user_model = UserService::do_get_user(state, name).await.map_err(|e| AppError::DatabaseError(e))?;
+        let user_model = UserService::do_get_user(&state, name).await.map_err(|e| AppError::DatabaseError(e))?;
         let user = User {
             username: user_model.username,
             email: user_model.email
@@ -37,14 +37,12 @@ impl UserHandler {
         Ok(serde_json::to_string(&user).unwrap())
     }
     
-
-    
     
     pub async fn update_user(
         State(state): State<AppState>,
         Json(user): Json<User>
     ) -> Result<String, AppError> {
-        UserService::do_update_user(state, user).await.map_err(|e| AppError::DatabaseError(e))?;
+        UserService::do_update_user(&state, user).await.map_err(|e| AppError::DatabaseError(e))?;
         Ok("update user success!".to_string())
     }
     
@@ -54,7 +52,7 @@ impl UserHandler {
         State(state): State<AppState>,
         Json(user): Json<User>
     ) -> Result<String, AppError> {
-        UserService::do_delete_user(state, user).await.map_err(|e| AppError::DatabaseError(e))?;
+        UserService::do_delete_user(&state, user).await.map_err(|e| AppError::DatabaseError(e))?;
         Ok("delete user success!".to_string())
     }
     
