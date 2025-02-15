@@ -1,13 +1,15 @@
 mod entitys;
 mod handler;
 mod boot_server;
+mod service;
+mod vo;
 
 use axum::{
     routing::{get, post}, 
     Router
 };
 use handler::user_handler::UserHandler;
-use boot_server::state::{self, AppState};
+use boot_server::state::AppState;
 use sea_orm::*;
 
 const DATABASE_URL: &str = "mysql://root:123456@localhost:3306";
