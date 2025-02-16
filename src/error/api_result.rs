@@ -116,7 +116,7 @@ where
 }
 
 #[macro_export]
-macro_rules! api_ok {
+macro_rules! result_ok {
     ($data:expr) => {
         Ok($crate::error::api_result::ApiOk($data))
     };
