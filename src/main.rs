@@ -4,6 +4,7 @@ mod boot_server;
 mod service;
 mod vo;
 mod dao;
+pub mod error;
 
 use axum::{
     routing::{get, post}, 

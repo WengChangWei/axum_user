@@ -1,33 +1,28 @@
 pub struct UserService;
 
-use sea_orm::*;
-
 use crate::{
-    boot_server::state::AppState, 
-    entitys::users_demo::Model, 
-    vo::user::User, 
-    dao::user_dao::UserDao,
+    boot_server::state::AppState, dao::user_dao::UserDao, entitys::users_demo::Model, error::error::AppError, vo::user::User
 };
 
 impl UserService {
     pub async fn do_create_user(
         state: &AppState, 
         user: User
-    ) -> Result<(), DbErr> {
+    ) -> Result<(), AppError> {
         UserDao::create_model(&state.conn, user).await
     }
 
     pub async fn do_get_user(
         state: &AppState, 
         username: String
-    ) -> Result<Model, DbErr> {
+    ) -> Result<Model, AppError> {
         UserDao::get_by_username(&state.conn, &username).await
     }
 
     pub async fn do_update_user(
         state: &AppState,
         user: User
-    ) -> Result<(), DbErr> {
+    ) -> Result<(), AppError> {
         let username = &user.username;
         let db = &state.conn;
         let user_model = UserDao::get_by_username(&state.conn, username).await;
@@ -45,7 +40,7 @@ impl UserService {
     pub async fn do_delete_user(
         state: &AppState,
         user: User
-    ) -> Result<(), DbErr> {
+    ) -> Result<(), AppError> {
         let user_model = UserDao::get_by_username(&state.conn, &user.username).await;
         match user_model {
             Ok(model) => {
