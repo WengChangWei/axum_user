@@ -25,13 +25,17 @@ async fn main() {
     let state = AppState{ conn };
 
     let app = Router::new()
-    .route("/", get(UserHandler::root))
+    .route("/", get(root))
     .route("/users", post(UserHandler::create_user).put(UserHandler::update_user).delete(UserHandler::delete_user))
     .route("/users/:username", get(UserHandler::get_user))
     .with_state(state);
 
     let listener = tokio::net::TcpListener::bind("127.0.0.1:3000").await.unwrap();
     axum::serve(listener, app).await.unwrap();
+}
+
+pub async fn root() -> Response<Body> {
+    "Hello, World!".into_response()
 }
 
 async fn connect_db() -> Result<DatabaseConnection, DbErr> {

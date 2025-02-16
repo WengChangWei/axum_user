@@ -7,10 +7,6 @@ pub struct UserHandler;
 
 impl UserHandler {
     
-    pub async fn root() -> Response<Body> {
-        "Hello, World!".into_response()
-    }
-    
     pub async fn create_user(
         State(state): State<AppState>,
         Json(user): Json<User>
