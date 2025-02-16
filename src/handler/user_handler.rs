@@ -10,10 +10,10 @@ impl UserHandler {
     pub async fn create_user(
         State(state): State<AppState>,
         Json(user): Json<User>
-    ) -> Result<ApiOk<String>, AppError> {
+    ) -> Result<ApiOk<()>, AppError> {
         UserService::do_create_user(&state,user)
         .await
-        .map(|_r| api_ok!("success".to_string()))?
+        .map(|r| api_ok!(r))?
     }
 
     
@@ -30,10 +30,10 @@ impl UserHandler {
     pub async fn update_user(
         State(state): State<AppState>,
         Json(user): Json<User>
-    ) -> Result<ApiOk<String>, AppError> {
+    ) -> Result<ApiOk<()>, AppError> {
         UserService::do_update_user(&state, user)
         .await
-        .map(|_r| api_ok!("success".to_string()))?
+        .map(|r| api_ok!(r))?
     }
     
 
@@ -41,10 +41,10 @@ impl UserHandler {
     pub async fn delete_user(
         State(state): State<AppState>,
         Json(user): Json<User>
-    ) -> Result<ApiOk<String>, AppError> {
+    ) -> Result<ApiOk<()>, AppError> {
         UserService::do_delete_user(&state, user)
         .await
-        .map(|_r| api_ok!("success".to_string()))?
+        .map(|r| api_ok!(r))?
     }
     
 

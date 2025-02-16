@@ -37,7 +37,7 @@ where
             result: true,
             code: "00".to_string(),
             data: value.0,
-            message: None,
+            message: Some("Success".to_string()),
             errors: None,
         }
     }
