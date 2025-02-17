@@ -1,7 +1,7 @@
 pub struct UserService;
 
 use crate::{
-    boot_server::state::AppState, dao::user_dao::UserDao, entitys::users_demo::Model, error::error::AppError, vo::user::User
+    boot_server::state::AppState, dao::user_dao::UserDao, entitys::users_demo::Model, error::api_return::AppError, vo::user::User
 };
 
 impl UserService {

@@ -13,7 +13,7 @@ use handler::user_handler::UserHandler;
 use boot_server::state::AppState;
 use sea_orm::*;
 
-const DATABASE_URL: &str = "mysql://root:123456@localhost:3306";
+const DATABASE_URL: &str = "mysql://root:root@localhost:3306";
 const DB_NAME: &str = "rust_demo";
 
 #[tokio::main]

@@ -1,6 +1,11 @@
 use axum::{extract::{Path, State}, Json};
 use crate::{
-    result_ok, boot_server::state::AppState, entitys::users_demo::Model as UsersDemoModel, error::{ api_result::ApiOk, error::AppError}, service::user_service::UserService, vo::user::User
+    boot_server::state::AppState, 
+    entitys::users_demo::Model as UsersDemoModel, 
+    error::{ api_return::ApiOk, api_return::AppError}, 
+    service::user_service::UserService, 
+    success, 
+    vo::user::User
 };
 
 pub struct UserHandler;
@@ -13,7 +18,7 @@ impl UserHandler {
     ) -> Result<ApiOk<()>, AppError> {
         UserService::do_create_user(&state,user)
         .await
-        .map(|r| result_ok!(r))?
+        .map(|r| success!(r))?
     }
 
     
@@ -23,7 +28,7 @@ impl UserHandler {
     ) -> Result<ApiOk<UsersDemoModel>, AppError> {
         UserService::do_get_user(&state, name)
         .await
-        .map(|r| result_ok!(r))?
+        .map(|r| success!(r))?
     }
     
     
@@ -33,7 +38,7 @@ impl UserHandler {
     ) -> Result<ApiOk<()>, AppError> {
         UserService::do_update_user(&state, user)
         .await
-        .map(|r| result_ok!(r))?
+        .map(|r| success!(r))?
     }
     
 
@@ -44,7 +49,7 @@ impl UserHandler {
     ) -> Result<ApiOk<()>, AppError> {
         UserService::do_delete_user(&state, user)
         .await
-        .map(|r| result_ok!(r))?
+        .map(|r| success!(r))?
     }
     
 

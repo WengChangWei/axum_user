@@ -9,7 +9,7 @@ use crate::{
         *
     }, 
     vo::user::User,
-    error::error::{DataNotFoundSnafu, MetaDataBaseAccessErrSnafu, Result}
+    error::api_return::{DataNotFoundSnafu, MetaDataBaseAccessErrSnafu, Result}
 };
 
 pub struct UserDao;
