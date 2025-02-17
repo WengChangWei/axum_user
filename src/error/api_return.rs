@@ -3,14 +3,13 @@ use std::{collections::HashMap, result};
 use axum::{http::StatusCode, response::{IntoResponse, Response}, Json};
 use sea_orm::DbErr;
 use serde::Serialize;
-use serde_json::{json, Value};
+use serde_json::json;
 use snafu::Snafu;
 
 use super::result_code::ResultCode;
 
 
-pub struct ApiOk<T>(pub T);
-pub struct ApiErr<T>(pub T);
+pub struct AppSuccess<T>(pub T);
 pub type Result<T, E = AppError> = result::Result<T, E>;
 pub const ERROR: &str = "error";
 
@@ -35,11 +34,11 @@ where
     }
 }
 
-impl <T> From<ApiOk<T>> for ApiReturn<T> 
+impl <T> From<AppSuccess<T>> for ApiReturn<T> 
 where 
     T: Serialize
 {
-    fn from(value: ApiOk<T>) -> Self {
+    fn from(value: AppSuccess<T>) -> Self {
         ApiReturn {
             result: true,
             code: "00".to_string(),
@@ -50,52 +49,12 @@ where
     }
 }
 
-impl<T> IntoResponse for ApiOk<T> 
+impl<T> IntoResponse for AppSuccess<T> 
 where 
     T: serde::Serialize
 {
     fn into_response(self) -> axum::response::Response {
         ApiReturn::from(self).into_response()
-    }
-}
-
-pub trait ErrorCode {
-    fn error_code(&self) -> String;
-    fn data(&self) -> Value {
-        Value::Null
-    }
-
-    fn message(&self) -> String {
-        "".to_string()
-    }
-
-    fn errors(&self) -> HashMap<String, String> {
-        HashMap::new()
-    }
-}
-
-impl<T> IntoResponse for ApiErr<T>
-where
-    T: ErrorCode,
-{
-    fn into_response(self) -> axum::response::Response {
-        ApiReturn {
-            result: false,
-            data: Some(self.0.data()),
-            code: self.0.error_code(),
-            message: Some(self.0.message()),
-            errors: Some(self.0.errors()),
-        }
-        .into_response()
-    }
-}
-
-impl<T> From<T> for ApiErr<T>
-where
-    T: std::error::Error + ErrorCode,
-{
-    fn from(value: T) -> Self {
-        Self(value)
     }
 }
 
@@ -142,7 +101,7 @@ impl AppError {
 #[macro_export]
 macro_rules! success {
     ($data:expr) => {
-        Ok($crate::error::api_return::ApiOk($data))
+        Ok($crate::error::api_return::AppSuccess($data))
     };
 }
 
